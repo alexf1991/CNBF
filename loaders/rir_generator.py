@@ -37,7 +37,7 @@ class rir_generator(object):
         self.nsrc = config['nsrc']
         assert(self.nsrc == 2)                              # only 2 sources are supported
 
-        self.rir_file = '../loaders/rir_cache.mat'
+        self.rir_file = os.path.join(config['config_file_dir'].replace("cnbf.json",""),'rir_cache.mat')
 
         self.define_mic_array()
         self.generate_whitening_matrix()

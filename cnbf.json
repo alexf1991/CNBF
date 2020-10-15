@@ -7,7 +7,7 @@
     "nsrc": 2,
     "predictions_path": "../predictions/",
     "weights_path": "../weights/",
-    "train_path": "/clusterFS/project/beamforming/data/wsj0/si_tr_*/*/",
-    "eval_path": "/clusterFS/project/beamforming/data/wsj0/si_et_*/*/",
-    "test_path": "/clusterFS/project/beamforming/data/wsj0/si_et_*/*/"
+    "train_path": "/srv/TUG/datasets/wsj0/si_tr_*/*/",
+    "eval_path": "/srv/TUG/datasets/wsj0/si_et_*/*/",
+    "test_path": "/srv/TUG/datasets/wsj0/si_et_*/*/"
 }

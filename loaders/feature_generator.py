@@ -26,7 +26,7 @@ class feature_generator(object):
 
 
     #--------------------------------------------------------------------------
-    def __init__(self, config, set='train'):
+    def __init__(self, config, set='train',steps=2000):
 
         self.set = set
         self.config = config
@@ -36,6 +36,7 @@ class feature_generator(object):
         self.samples = int(self.fs*config['duration'])
         self.nfram = int(np.ceil( (self.samples-self.wlen+self.shift)/self.shift ))
         self.nbin = int(self.wlen/2+1)
+        self.steps = steps
 
         self.nsrc = config['nsrc']
         assert(self.nsrc == 2)                              # only 2 sources are supported
@@ -44,8 +45,9 @@ class feature_generator(object):
         self.rgen = rir_generator(config, set)
         self.nmic = self.rgen.nmic
 
-
-
+    def generate(self):
+        for i in range(self.steps):
+            yield self.generate_mixture()
     #---------------------------------------------------------
     def generate_mixture(self,):
 

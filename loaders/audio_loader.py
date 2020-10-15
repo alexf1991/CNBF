@@ -43,7 +43,6 @@ class audio_loader(object):
         print('*** audio_loader found %d files in: %s' % (self.numof_files, path))
 
 
-
     #-------------------------------------------------------------------------
     def concatenate_random_files(self,):
 

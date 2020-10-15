@@ -6,12 +6,12 @@ import os
 import sys
 
 import tensorflow as tf
-from keras.layers import Layer, RNN
-from keras import activations
+from tensorflow.keras.layers import Layer, RNN
+#from keras import activations
 
 sys.path.append(os.path.abspath('../'))
-from utils.keras_helpers import *
-from ops.complex_ops import *
+#from utils.keras_helpers import *
+from models.ops.complex_ops import *
 
 
 
@@ -23,7 +23,7 @@ class Kernelized_Dense(Layer):
 
         super(Kernelized_Dense, self).__init__()
         self.units = units
-        self.activation = activations.get(activation)
+        self.activation = tf.keras.layers.Activation(activation)#activations.get(activation)
 
 
     def build(self, input_shape):
@@ -122,8 +122,8 @@ class Kernelized_LSTM(Layer):
         def __init__(self, kernels, units, activation='tanh', recurrent_activation='hard_sigmoid'):
 
             super(Kernelized_LSTM.Cell, self).__init__()
-            self.activation = activations.get(activation)
-            self.recurrent_activation = activations.get(recurrent_activation)
+            self.activation = tf.keras.layers.Activation(activation)#activations.get(activation)
+            self.recurrent_activation = tf.keras.layers.Activation(recurrent_activation)#activations.get(recurrent_activation)
             self.units = units                                              # = data size of the output
             self.kernels = kernels                                          # = kernel size of the output
             self.state_size = (kernels*units, kernels*units)                # = flattened sizes of the hidden and carry state
