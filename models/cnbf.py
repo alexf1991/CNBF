@@ -14,6 +14,7 @@ class CNBF(tf.keras.Model):
                  config,
                  fgen,
                  batch_size,
+                 n_ch_base=16,
                  kernel_regularizer=tf.keras.regularizers.l2(2e-4),
                  kernel_initializer=tf.keras.initializers.he_normal(),
                  name = "cnbf",
@@ -45,7 +46,7 @@ class CNBF(tf.keras.Model):
 
         X = tf.concat([vz, Lz], axis=-1)  # shape = (nbatch, nfram, nbin, nmic+1)
         Y = tf.reshape(X,
-                       [self.nbatch, self.nfram, self.nbin * (self.nmic + 1)])  # shape = (nbatch, nfram, nbin*(nmic+1))
+                       [-1, self.nfram, self.nbin * (self.nmic + 1)])  # shape = (nbatch, nfram, nbin*(nmic+1))
 
         return [X, Y]
 

@@ -9,5 +9,7 @@
     "weights_path": "../weights/",
     "train_path": "/srv/TUG/datasets/wsj0/si_tr_*/*/",
     "eval_path": "/srv/TUG/datasets/wsj0/si_et_*/*/",
-    "test_path": "/srv/TUG/datasets/wsj0/si_et_*/*/"
+    "test_path": "/srv/TUG/datasets/wsj0/si_et_*/*/",
+    "spectral_parametrization":"True",
+    "kernel_initializer": "complex"
 }

@@ -7,6 +7,7 @@ from utils.utils import *
 from utils.trainer import ModelEnvironment
 from utils.summary_utils import Summaries
 from models.cnbf import CNBF
+from models.complex_cnn import CNBF_CNN
 from models.eval_functions.nbf_loss import EvalFunctions
 from loaders.feature_generator import feature_generator
 import time
@@ -40,7 +41,7 @@ def data_generator(data,batch_size,is_training,is_validation=False,take_n=None,s
    
     dataset = tf.data.Dataset.from_generator(data,(tf.float32,tf.float32))
     if is_training:
-        shuffle_buffer=512
+        shuffle_buffer=64
 
     if skip_n != None:
         dataset = dataset.skip(skip_n)
@@ -49,11 +50,11 @@ def data_generator(data,batch_size,is_training,is_validation=False,take_n=None,s
 
     if is_training:
 
-        dataset = dataset.shuffle(shuffle_buffer)
+        #dataset = dataset.shuffle(shuffle_buffer)
         dataset = dataset.batch(batch_size,drop_remainder=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     else:
-        dataset = dataset.batch(100)
+        dataset = dataset.batch(batch_size)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
@@ -145,8 +146,9 @@ def main(argv):
 
     input_shape = (batch_size, fgen_train.nfram, fgen_train.nbin, fgen_train.nmic)
     #ResNet 18
-    model = CNBF(config = config,
+    model = CNBF_CNN(config = config,
                  fgen = fgen_train,
+                 n_ch_base = 16,
                  batch_size=batch_size,
                  name = "cnbf",
                  kernel_regularizer=tf.keras.regularizers.l2(2e-4),
@@ -155,9 +157,9 @@ def main(argv):
 
     #Train data generator
     train_ds = data_generator(fgen_train.generate,batch_size,is_training=True,input_shape = input_shape)
-    steps_train = fgen_train.steps
+    steps_train = fgen_train.steps//batch_size
     #Test data generator
-    test_ds = data_generator(fgen_test.generate,100,is_training=False,input_shape = input_shape)
+    test_ds = data_generator(fgen_test.generate,batch_size,is_training=False,input_shape = input_shape)
     #Create summaries to log
     scalar_summary_names = ["total_loss",
                             "bf_loss",
