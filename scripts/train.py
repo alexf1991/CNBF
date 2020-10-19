@@ -127,6 +127,9 @@ def main(argv):
         with open(FLAGS.config_file, 'r') as f:
             config = json.load(f)
             config["config_file_dir"] = FLAGS.config_file
+            config["predictions_path"] = os.path.join(model_save_dir, "predictions")
+            if not(os.path.exists(config["predictions_path"])):
+                os.makedirs(config["predictions_path"])
     except:
         print('*** could not load config file: %s' % FLAGS.config_file)
         quit(0)
@@ -134,21 +137,21 @@ def main(argv):
     #If load_model get old configuration
     if load_model:
         try:
-            params = csv_to_dict(os.path.join(model_dir, "model_params.csv"))
+            params = csv_to_dict(os.path.join(model_save_dir, "model_params.csv"))
         except:
             print("Could not find model hyperparameters!")
 
     if FLAGS.predict is False:
-        fgen_train = feature_generator(config, 'train')
-        fgen_test = feature_generator(config, 'test')
+        fgen_train = feature_generator(config, 'train',steps=2000)
+        fgen_test = feature_generator(config, 'test',steps=100)
     else:
-        fgen_test = feature_generator(config, 'test')
+        fgen_test = feature_generator(config, 'test',steps=100)
 
     input_shape = (batch_size, fgen_train.nfram, fgen_train.nbin, fgen_train.nmic)
     #ResNet 18
     model = CNBF_CNN(config = config,
                  fgen = fgen_train,
-                 n_ch_base = 16,
+                 n_ch_base = 8,
                  batch_size=batch_size,
                  name = "cnbf",
                  kernel_regularizer=tf.keras.regularizers.l2(2e-4),
@@ -163,6 +166,8 @@ def main(argv):
     #Create summaries to log
     scalar_summary_names = ["total_loss",
                             "bf_loss",
+                            "opt_loss",
+                            "ws_loss",
                             "weight_decay_loss",
                             "accuracy"]
 
@@ -170,8 +175,8 @@ def main(argv):
                           learning_rate_names = ["learning_rate"],
                           save_dir = model_save_dir,
                           modes = ["train","test"],
-                          summaries_to_print={"train": ["total_loss", "accuracy"],
-                                              "eval":["total_loss", "accuracy"]})
+                          summaries_to_print={"train": ["total_loss", "bf_loss","opt_loss","ws_loss"],
+                                              "eval":["total_loss", "bf_loss","opt_loss","ws_loss"]})
 
     #Create training setttings for models
     model_settings = [{'model': model,

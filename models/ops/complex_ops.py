@@ -131,7 +131,6 @@ def elementwise_abs(z):
     return s, grad
 
 
-
 #-------------------------------------------------------------------
 @tf.custom_gradient
 def elementwise_abs2(z):
@@ -146,7 +145,6 @@ def elementwise_abs2(z):
         return grad_z
 
     return s, grad
-
 
 
 #-------------------------------------------------------------------

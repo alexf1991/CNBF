@@ -401,7 +401,8 @@ class ModelEnvironment():
 
                     # Update summaries
                     self.update_summaries(losses,outputs,test_y,"test")
-
+                #Make single prediction
+                self.predict(test_x,False)
                 # Write test summaries
                 self.write_summaries(epoch+1,"test")
 

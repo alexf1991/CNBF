@@ -7,8 +7,8 @@ import numpy as np
 import soundfile as sf
 from scipy import signal
 from scipy.fftpack import dct
-
-
+from pesq import pesq
+from scipy.io import wavfile
 
 #----------------------------------------------------------------
 # read multichannel audio data
@@ -40,15 +40,23 @@ def audiowrite(x, filename, fs=16000, normalize=True):
 # convert STFT data back to time domain, and save to WAV-files
 # data = tuple of STFT tensors
 # filenames = tuple of file names
-def convert_and_save_wavs(data, filenames, fs=16000):
+def convert_and_save_wavs(data, filenames, fs=16000,calc_pesq=True):
 
     for Fz, filename in zip(data, filenames):
         z = mistft(Fz)                                  # Fz.shape = (nfram, self.nbin)
 
         mkdir(os.path.dirname(filename))
         audiowrite(z, filename, fs)
+        if calc_pesq:
+            if "enhaced" in filename:
+                rate, deg = wavfile.read(filename)
+            elif "clean" in filename:
+                rate, ref = wavfile.read(filename)
 
+    if calc_pesq:
+        pesq_score = pesq(rate,ref,deg)
 
+        return pesq_score
 
 #----------------------------------------------------------------
 # wrapper for python real fft
