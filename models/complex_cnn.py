@@ -211,10 +211,11 @@ class CNBF_CNN(tf.keras.Model):
         Fs = tf.cast(inp[0], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
         Fn = tf.cast(inp[1], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
         W = tf.cast(inp[2], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
-
+        #W = tf.reduce_mean(W,axis=-2,keepdims=True)
+        #W = tf.tile(W,[1,1,self.nbin,1])
         # beamforming
-        #W = vector_normalize_magnitude(W)  # shape = (nbatch, nfram, nbin, nmic)
-        #W = vector_normalize_phase(W)  # shape = (nbatch, nfram, nbin, nmic)
+        W = vector_normalize_magnitude(W)  # shape = (nbatch, nfram, nbin, nmic)
+        W = vector_normalize_phase(W)  # shape = (nbatch, nfram, nbin, nmic)
         Fys = vector_conj_inner(Fs, W)
         #Fys = tf.squeeze(W[...,:W.shape[-1]//2])  # shape = (nbatch, nfram, nbin)
         Fyn = vector_conj_inner(Fn, W)
@@ -248,7 +249,16 @@ class CNBF_CNN(tf.keras.Model):
         critic_loss = tf.reduce_mean(real)-tf.reduce_mean(fake)
         gen_loss = tf.reduce_mean(self.critic(tf.expand_dims(Pys,-1), training))
         ws_loss = gen_loss+critic_loss
-        #opt_loss = tf.reduce_mean(tf.abs(Pys-Ps))+tf.reduce_mean(Pyn)+0.1*ws_loss#-tf.reduce_mean(delta_snr, axis=(1, 2))+1e-2*delta_phase
+        Ps_normed = Ps/tf.norm(Ps,axis=-1,keepdims=True)
+        Pn_normed = Pn / tf.norm(Pn, axis=-1, keepdims=True)
+        Pys_normed = Pys / tf.norm(Pys, axis=-1, keepdims=True)
+        Pyn_normed = Pyn / tf.norm(Pyn, axis=-1, keepdims=True)
+
+        #opt_loss = -tf.reduce_mean(Ps_normed*Pys_normed)\
+        #           -tf.reduce_mean(Pn_normed*Pyn_normed)\
+        #           +tf.reduce_mean(Pys_normed*Pyn_normed)\
+        #           +tf.reduce_mean(tf.abs(Pys-Ps))\
+        #           +tf.reduce_mean(tf.abs(Pyn-Pn))+0.1*ws_loss#-tf.reduce_mean(delta_snr, axis=(1, 2))+1e-2*delta_phase
         cost = -tf.reduce_mean(delta_snr, axis=(1, 2))
         opt_loss = cost+0.1*ws_loss
         return [Fys, Fyn, cost,opt_loss,ws_loss]

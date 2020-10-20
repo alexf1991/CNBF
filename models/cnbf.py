@@ -109,5 +109,5 @@ class CNBF(tf.keras.Model):
         X = self.complex_dense_3(X)  # shape = (nbatch, nfram, nbin, nmic*2)
         W = self.complex_dense_4(X)  # shape = (nbatch, nfram, nbin, nmic)
         Fys, Fyn, cost = self.layer_2([Fs, Fn, W])
-        return Fys, Fyn, cost
+        return Fys, Fyn, cost,cost,0.0
     

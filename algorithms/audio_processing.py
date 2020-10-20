@@ -48,13 +48,13 @@ def convert_and_save_wavs(data, filenames, fs=16000,calc_pesq=True):
         mkdir(os.path.dirname(filename))
         audiowrite(z, filename, fs)
         if calc_pesq:
-            if "enhaced" in filename:
+            if "enhanced" in filename:
                 rate, deg = wavfile.read(filename)
             elif "clean" in filename:
                 rate, ref = wavfile.read(filename)
 
     if calc_pesq:
-        pesq_score = pesq(rate,ref,deg)
+        pesq_score = pesq(rate,ref,deg,'wb')
 
         return pesq_score
 
@@ -145,7 +145,7 @@ def mistft(Fx, wlen=1024, shift=256, window=signal.blackman):
                 idx = np.arange(wlen) + t*shift
                 x[idx,c] += Bx * synthesis_window
 
-
+  
     return x
 
 

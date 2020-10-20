@@ -194,8 +194,8 @@ class ModelEnvironment():
             self.update_learning_rate_summaries()
             self.write_learning_rate_summaries(epoch)
                     
-    def predict(self,x,training = False):
-        return self.eval_fns.predict(x, training=training)
+    def predict(self,x,training = False,epoch=0):
+        return self.eval_fns.predict(x, training=training,epoch=epoch)
 
     def compute_loss(self, x, y , training = True):
         return self.eval_fns.compute_loss(x,y,training)
@@ -353,7 +353,7 @@ class ModelEnvironment():
             for train_xy in self.training_data_generator:
                 train_x = self.get_data_for_keys(train_xy,self.input_keys)
                 train_y = self.get_data_for_keys(train_xy,self.label_keys)
-                start_time = time()        
+                start_time = time()
                 losses,outputs = self.train_step(train_x, train_y)
 
                 # Update summaries
@@ -394,7 +394,7 @@ class ModelEnvironment():
                 for test_xy in self.test_data_generator:
                     test_x = self.get_data_for_keys(test_xy,self.input_keys)
                     test_y = self.get_data_for_keys(test_xy,self.label_keys)
-                    
+
                     losses,outputs = self.compute_loss(test_x,
                                                                 test_y,
                                                                 training=False)
@@ -402,7 +402,7 @@ class ModelEnvironment():
                     # Update summaries
                     self.update_summaries(losses,outputs,test_y,"test")
                 #Make single prediction
-                self.predict(test_x,False)
+                self.predict(test_x,False,epoch)
                 # Write test summaries
                 self.write_summaries(epoch+1,"test")
 

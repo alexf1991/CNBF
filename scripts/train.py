@@ -39,7 +39,7 @@ def preprocess(sample):
 
 def data_generator(data,batch_size,is_training,is_validation=False,take_n=None,skip_n=None,input_shape=None):
    
-    dataset = tf.data.Dataset.from_generator(data,(tf.float32,tf.float32))
+    dataset = tf.data.Dataset.from_generator(data,(tf.complex64,tf.complex64,tf.float32,tf.complex64))
     if is_training:
         shuffle_buffer=64
 
@@ -168,6 +168,8 @@ def main(argv):
                             "bf_loss",
                             "opt_loss",
                             "ws_loss",
+                            "pesq_score",
+                            "stoi_score",
                             "weight_decay_loss",
                             "accuracy"]
 
@@ -202,7 +204,7 @@ def main(argv):
                                load_model=load_model,
                                save_dir = model_save_dir,
                                input_keys=[0,1],
-                               label_keys=[],
+                               label_keys=[2,3],
                                start_epoch=start_epoch)
     
     trainer.train()

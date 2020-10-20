@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import sys
+import copy
 import numpy as np
 import pyroomacoustics as pra
 
@@ -54,6 +55,7 @@ class feature_generator(object):
         hs, hn = self.rgen.load_rirs()
         s = self.audio_loader.concatenate_random_files()                    # shape = (samples,)
         n = self.audio_loader.concatenate_random_files()                    # shape = (samples,)
+        ref = copy.deepcopy(s)
 
         Fhs = rfft(hs, n=self.samples, axis=0)                              # shape = (samples/2+1, nmic)
         Fhn = rfft(hn, n=self.samples, axis=0)                              # shape = (samples/2+1, nmic)
@@ -72,11 +74,12 @@ class feature_generator(object):
 
         Fn = mstft(n.T, self.wlen, self.shift)                              # shape = (nmic, nfram, nbin)
         Fn = np.transpose(Fn, (1,2,0))                                      # shape = (nfram, nbin, nmic)
+        Fref = mstft(ref.T,self.wlen,self.shift)                            # shape = (nbin, nfram)
 
         Fs = self.rgen.whiten_data(Fs)
         Fn = self.rgen.whiten_data(Fn)
 
-        return Fs, Fn
+        return Fs, Fn,ref,Fref
 
 
 
