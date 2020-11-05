@@ -11,5 +11,6 @@
     "eval_path": "/srv/TUG/datasets/wsj0/si_et_*/*/",
     "test_path": "/srv/TUG/datasets/wsj0/si_et_*/*/",
     "spectral_parametrization":1,
-    "kernel_initializer": "complex"
+    "kernel_initializer": "complex",
+    "preload": 1
 }

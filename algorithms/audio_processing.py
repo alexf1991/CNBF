@@ -9,6 +9,7 @@ from scipy import signal
 from scipy.fftpack import dct
 from pesq import pesq
 from scipy.io import wavfile
+import tensorflow as tf
 
 #----------------------------------------------------------------
 # read multichannel audio data
@@ -96,7 +97,7 @@ def mstft(x, wlen=1024, shift=256, window=signal.blackman):
     for t in range(nfram):
         Bx[...,t,:] = x[...,idx+t*shift]
 
-    Bx = np.einsum('...tw,w->...tw', Bx, analysis_window)
+    Bx = tf.einsum('...tw,w->...tw', Bx, analysis_window)
     Fx = rfft(Bx, n=wlen, axis=-1).astype(np.complex64)          # shape = (..., nfram, nbin)
 
     return Fx

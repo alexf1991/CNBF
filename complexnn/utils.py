@@ -140,45 +140,113 @@ class CSP(tf.keras.layers.Layer):
 
         return tf.concat([out_real,out_imag],axis=-1)
 
+class Cauchy2(tf.keras.layers.Layer):
+    def __init__(self):
+        super(Cauchy2, self).__init__()
+
+    def build(self, input_shape):
+        self.act = tf.keras.layers.Activation("relu")
+        return
+    def call(self,inputs,training=False):
+
+
+        input_real = inputs[...,:inputs.shape[-1]//2]
+        input_imag = inputs[...,inputs.shape[-1] // 2:]
+        heavyside_real = tf.where(input_real>0,tf.ones_like(input_real),tf.zeros_like(input_real))
+        heavyside_imag = tf.where(input_imag > 0, tf.ones_like(input_imag), tf.zeros_like(input_imag))
+        heavyside = heavyside_real*heavyside_imag
+
+        norm = tf.where(heavyside>1e-6,tf.sqrt(input_real**2+input_imag**2),tf.zeros_like(input_real))
+        out_real = tf.math.log(norm)
+        out_real = tf.where(tf.math.is_finite(out_real),out_real,tf.zeros_like(out_real))
+        out_imag = tf.math.atan2(input_real,input_imag)
+        out_imag = tf.where(tf.math.is_finite(out_imag), out_imag, tf.zeros_like(out_imag))
+
+        return tf.concat([out_real,out_imag],axis=-1)
+
+class Cauchy1(tf.keras.layers.Layer):
+    def __init__(self):
+        super(Cauchy1, self).__init__()
+
+    def build(self, input_shape):
+        self.act = tf.keras.layers.Activation("relu")
+        self.a = self.add_weight(name='a',
+                                             shape=[1],
+                                             initializer=tf.keras.initializers.Ones,
+                                             regularizer=None,
+                                             trainable=False,
+                                             dtype=tf.float32,
+                                             aggregation=tf.VariableAggregation.MEAN)
+        self.a.assign([0.01])
+        return
+    def call(self,inputs,training=False):
+
+
+        input_real = inputs[...,:inputs.shape[-1]//2]
+        input_imag = inputs[...,inputs.shape[-1] // 2:]
+        heavyside_real = tf.where(input_real>0,tf.ones_like(input_real),tf.zeros_like(input_real))
+        heavyside_imag = tf.where(input_imag > 0, tf.ones_like(input_imag), tf.zeros_like(input_imag))
+        heavyside = heavyside_real*heavyside_imag
+        input_real = tf.where(heavyside > 1e-6, input_real, tf.zeros_like(input_real))
+        input_imag = tf.where(heavyside > 1e-6, input_imag, tf.zeros_like(input_imag))
+        out_real = tf.math.exp(-self.a*input_real)*tf.math.sin(self.a*input_imag)
+        out_real = tf.where(tf.math.is_finite(out_real), out_real, tf.zeros_like(out_real))
+
+        out_imag = tf.math.exp(-self.a*input_imag)*tf.math.cos(self.a*input_imag)-1
+        out_imag = tf.where(tf.math.is_finite(out_imag), out_imag, tf.zeros_like(out_imag))
+
+        return tf.concat([out_real,out_imag],axis=-1)
+
+@tf.custom_gradient
+def custom_rot(x,y):
+    xx = tf.nn.relu(x)
+    yy = tf.nn.relu(y)
+    norm = tf.sqrt(xx ** 2 + yy ** 2)
+    k_real = 1
+    k_imag = tf.nn.relu(norm - 0.1)
+    norm_k = tf.sqrt(k_real ** 2 + k_imag ** 2)
+    k_real = tf.stop_gradient(k_real / norm_k)
+    k_imag = tf.stop_gradient(k_imag / norm_k)
+
+    xx = xx * k_real - yy * k_imag
+    yy = xx * k_imag + yy * k_real
+
+    def grad(dx,dy):
+        bw_x = tf.nn.relu(x)-tf.nn.relu(y)*tf.stop_gradient(tf.nn.relu(norm - 0.1))
+        bw_y = tf.stop_gradient(tf.nn.relu(norm - 0.1))*tf.nn.relu(x)+tf.nn.relu(y)
+        grads_x_1,grads_y_1 = tf.gradients(bw_x,[x,y])
+        grads_x_2,grads_y_2 = tf.gradients(bw_y,[x,y])
+        grads_x = grads_x_1 + grads_x_2
+        grads_y = grads_y_1 + grads_y_2
+        #grads_x = tf.where(tf.logical_and(x<0,y>0),grads_y,grads_x)
+        #grads_y = tf.where(tf.logical_and(x>0,y<0),grads_x,grads_y)
+        dx = dx*grads_x
+        dy = dy*grads_y
+        return dx,dy
+    return (xx,yy), grad
+
 class CRot(tf.keras.layers.Layer):
     def __init__(self):
         super(CRot, self).__init__()
 
     def build(self, input_shape):
         self.act = tf.keras.layers.Activation("relu")
-        self.affine_params = self.add_weight(name='affine_params',
-                                             shape=[1] * (len(input_shape)-1)+[input_shape[-1]//2] + [2],
-                                             initializer=tf.keras.initializers.Zeros,
-                                             regularizer=None,
-                                             trainable=True,
-                                             dtype=tf.float32,
-                                             aggregation=tf.VariableAggregation.MEAN)
-        shp = [1] * len(input_shape)
+        shp = list(input_shape)
+        shp[-1] = shp[-1]//2
         self.one_i = tf.complex(tf.ones(shp)/tf.sqrt(2.0),tf.ones(shp)/tf.sqrt(2.0))
-        init_shp = [1] * (len(input_shape)-1)+[input_shape[-1]//2]+[1]
-        initialization = tf.concat([tf.random.normal(init_shp),
-                                    tf.random.normal(init_shp)], axis=-1)
-        self.affine_params.assign(initialization)
-
     def call(self,inputs,training=False):
 
-        input_real = self.act(inputs[...,:inputs.shape[-1]//2])
-        input_imag = self.act(inputs[...,inputs.shape[-1] // 2:])
-        norm = tf.maximum(tf.sqrt(input_real**2+input_imag**2),1e-8)
-        k_real = 1#self.affine_params[...,0]
-        k_imag = norm#*self.affine_params[...,1]
-        norm_k = tf.sqrt(k_real**2+k_imag**2)
-        k_real = k_real/norm_k
-        k_imag = k_imag/norm_k
-        input_complex = tf.complex(input_real,input_imag)
-        k_complex = tf.complex(k_real,k_imag)
-        #fact = input_real/norm*k_real+input_imag/norm*k_imag
-        fact = input_complex*k_complex
-        #tf.print(tf.math.real(fact))
-        out_real = tf.math.real(fact)#self.act(input_real-self.act(tf.math.real(fact)))#input_real - (tf.math.real(fact))
-        out_imag = tf.math.imag(fact)#self.act(input_imag-self.act(tf.math.real(fact)))#input_imag - (tf.math.imag(fact))
-        #out_real = norm*fact*k_real
-        #out_imag = norm*fact*k_imag
+
+        input_real = inputs[...,:inputs.shape[-1]//2]
+        input_imag = inputs[...,inputs.shape[-1] // 2:]
+
+        #heavyside_real = tf.where(input_real > 0, tf.ones_like(input_real), tf.zeros_like(input_real))
+        #heavyside_imag = tf.where(input_imag > 0, tf.ones_like(input_imag), tf.zeros_like(input_imag))
+        #heavyside = tf.stop_gradient(tf.where(tf.logical_and(input_real < 0,input_imag<0), tf.zeros_like(input_real), tf.ones_like(input_real)))
+
+        #input_real = input_real*heavyside
+        #input_imag = input_imag*heavyside
+        out_real,out_imag = custom_rot(input_real,input_imag)
 
         return tf.concat([out_real,out_imag],axis=-1)
 
@@ -352,6 +420,22 @@ class Spline(Layer):
 
         return x
 
+@tf.custom_gradient
+def custom_relu(x,y):
+    xx = tf.nn.relu(x)
+    yy = tf.nn.relu(y)
+    def grad(dx,dy):
+        bw_x = tf.nn.relu(x)
+        bw_y = tf.nn.relu(y)
+        grads_x = tf.gradients(bw_x,x)[0]
+        grads_y = tf.gradients(bw_y,y)[0]
+        #grads_x = tf.where(tf.logical_and(x<0,y>0),grads_y,grads_x)
+        #grads_y = tf.where(tf.logical_and(x>0,y<0),grads_x,grads_y)
+        dx = dx*grads_x
+        dy = dy*grads_y
+        return dx,dy
+    return (xx,yy), grad
+
 class CReLU(Layer):
     def __init__(self):
         super(CReLU, self).__init__()
@@ -365,7 +449,6 @@ class CReLU(Layer):
         input_real = inputs[...,:inputs.shape[-1]//2]
         input_imag = inputs[...,inputs.shape[-1] // 2:]
 
-        out_real = self.act(input_real)
-        out_imag = self.act(input_imag)
+        out_real,out_imag = custom_relu(input_real,input_imag)
 
         return tf.concat([out_real,out_imag],axis=-1)

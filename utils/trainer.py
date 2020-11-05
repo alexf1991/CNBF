@@ -354,6 +354,7 @@ class ModelEnvironment():
                 train_x = self.get_data_for_keys(train_xy,self.input_keys)
                 train_y = self.get_data_for_keys(train_xy,self.label_keys)
                 start_time = time()
+
                 losses,outputs = self.train_step(train_x, train_y)
 
                 # Update summaries

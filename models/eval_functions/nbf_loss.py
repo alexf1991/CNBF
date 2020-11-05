@@ -21,7 +21,7 @@ class EvalFunctions(object):
         """Returns a dict containing predictions e.g.{'predictions':predictions}"""
         Fs = x[0]
         Fn = x[1]
-        Fys, Fyn, cost,_,_ = self.nbf(Fs, Fn,training=False)
+        Fys, Fyn,Rys, cost,_,_ = self.nbf(Fs, Fn,training=False)
         Fys = Fys.numpy()
         Fyn = Fyn.numpy()
         Fs = Fs.numpy()
@@ -53,7 +53,7 @@ class EvalFunctions(object):
 
         Fs = x[0]
         Fn = x[1]
-        Fys, Fyn, cost,_,_ = self.nbf(Fs, Fn,training=False)
+        Fys, Fyn,Rys, cost,_,_ = self.nbf(Fs, Fn,training=False)
         Fys = Fys.numpy()
         Fyn = Fyn.numpy()
         Fs = Fs.numpy()
@@ -96,14 +96,14 @@ class EvalFunctions(object):
     @tf.function
     def compute_loss(self, x, y, training=True):
         """Has to at least return a dict containing the total loss and a prediction dict e.g.{'total_loss':total_loss},{'predictions':predictions}"""
-        Fys, Fyn, cost,opt_loss,ws_loss = self.nbf(x[0],x[1], training=training)
+        Fys, Fyn,Rys, cost,opt_loss,ws_loss = self.nbf(x[0],x[1], training=training)
 
         if len(self.nbf.losses) > 0:
             weight_decay_loss = tf.add_n(self.nbf.losses)
         else:
             weight_decay_loss = 0.0
-        #delta_target = y[1][:,:-1,:]-y[1][:,1:,:]
-        #delta_pred = Fys[:,:-1,:]-Fys[:,1:,:]
+        delta_target = y[1]#y[1][:,:-1,:]-y[1][:,1:,:]
+        delta_pred = Rys#Rys[:,:-1,:]-Rys[:,1:,:]
         #opt_loss += 0.1*tf.reduce_mean(tf.abs(tf.math.real(delta_pred)-tf.math.real(delta_target)))+\
         #            tf.reduce_mean(tf.abs(tf.math.imag(delta_pred)-tf.math.imag(delta_target)))
 

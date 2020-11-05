@@ -6,7 +6,7 @@ from   complexnn                             import ComplexBN,\
                                                     ComplexDense,\
                                                     FFT,IFFT,FFT2,IFFT2,\
                                                     SpectralPooling1D,SpectralPooling2D,ComplexFRN
-from complexnn import GetImag, GetReal,CReLU
+from complexnn import GetImag, GetReal,CReLU,CRot,Cauchy1
 from models.ops.complex_ops import *
 from models.layers.complex_layers import *
 from models.layers.kernelized_layers import *
@@ -106,11 +106,51 @@ class CriticLayer(tf.keras.layers.Layer):
 
         return x
 
+class ComplexNormalization(tf.keras.layers.Layer):
+    def __init__(self):
+        super(ComplexNormalization, self).__init__()
 
-class DenseLayer(tf.keras.layers.Layer):
-    def __init__(self,n_ch,dilation_rate,bnArgs,convArgs):
+    def to_real_imag_tensor(self, x):
+        return tf.concat([tf.math.real(x), tf.math.imag(x)], axis=-1)
+
+    def to_complex_tensor(self, x):
+        return tf.complex(x[..., :x.shape[-1] // 2], x[..., x.shape[-1] // 2:])
+
+    def call(self,input):
+        C = self.to_complex_tensor(input)
+        #C = vector_normalize_magnitude(C)
+        C = vector_normalize_phase(C)
+        return self.to_real_imag_tensor(C)
+
+
+class CompoundLayer(tf.keras.layers.Layer):
+    def __init__(self,n_ch,bnArgs,convArgs,dilation_rate=(1,1),strides=(1,1)):
         self.n_ch = n_ch
         self.dilation_rate = dilation_rate
+        self.strides = strides
+        self.bnArgs = bnArgs
+        self.convArgs = convArgs
+        super(CompoundLayer, self).__init__()
+
+    def build(self,input_shape):
+
+        self.bn = ComplexBN(name='bn', **self.bnArgs)
+        self.crelu = ComplexNormalization()
+        self.conv = ComplexConv2D(self.n_ch, (3, 3), **self.convArgs,strides=self.strides,dilation_rate=self.dilation_rate)
+
+
+    def call(self,input,training=False):
+
+        X = self.bn(input,training)  # shape = (nbatch, nfram, nbin)
+        X = self.crelu(X)
+        X = self.conv(X)  # shape = (nbatch, nfram, n_bin,2*n_ch_base)
+        return X
+
+class DenseLayer(tf.keras.layers.Layer):
+    def __init__(self,n_ch,bnArgs,convArgs,dilation_rate=(1,1),strides=(1,1)):
+        self.n_ch = n_ch
+        self.dilation_rate = dilation_rate
+        self.strides = strides
         self.bnArgs = bnArgs
         self.convArgs = convArgs
         super(DenseLayer, self).__init__()
@@ -127,8 +167,8 @@ class DenseLayer(tf.keras.layers.Layer):
     def build(self,input_shape):
 
         self.bn = ComplexBN(name='bn', **self.bnArgs)
-        self.crelu = CReLU()
-        self.conv = ComplexConv2D(self.n_ch, (3, 3), **self.convArgs,dilation_rate=self.dilation_rate)
+        self.crelu = ComplexNormalization()
+        self.conv = ComplexConv2D(self.n_ch, (3, 3), **self.convArgs,strides=self.strides,dilation_rate=self.dilation_rate)
 
 
     def call(self,input,training=False):
@@ -145,7 +185,7 @@ class CNBF_CNN(tf.keras.Model):
                  fgen,
                  batch_size,
                  n_ch_base = 8,
-                 n_dense = 5,
+                 n_dense = 4,
                  kernel_regularizer=tf.keras.regularizers.l2(2e-4),
                  kernel_initializer=tf.keras.initializers.he_normal(),
                  name="cnbf",
@@ -179,8 +219,41 @@ class CNBF_CNN(tf.keras.Model):
         self.convArgs.update({"spectral_parametrization":bool(config["spectral_parametrization"]),
                      "kernel_initializer": config["kernel_initializer"]})
 
+
+    def build(self, input_shape):
+        self.layer_0 = self.layer0
+        self.init_conv = ComplexConv2D(self.n_ch_base, (3,3), name='init_conv', **self.convArgs)
+        #self.init_conv2 = ComplexConv2D(self.n_ch_base, (3, 3), name='init_conv2', **self.convArgs)
+
+        self.dense_layers = []
+        for i_dense in range(self.n_dense):
+            self.dense_layers.append(DenseLayer(self.n_ch_base,
+                                                dilation_rate = [2**i_dense,1],
+                                                bnArgs=self.bnArgs,
+                                                convArgs=self.convArgs))
+
+        self.conv_after_db = ComplexConv2D(self.n_ch_base*self.n_dense, (3, 3), name='conv_after_db', **self.convArgs)
+        self.bn_after_db = ComplexBN(name='bn_after_db', **self.bnArgs)
+        self.act_after_db = ComplexNormalization()
+        #self.conv_after_db2 = ComplexConv2D(self.n_ch_base * self.n_dense, (3, 3), name='conv_after_db2', **self.convArgs)
+        #self.bn_after_db2 = ComplexBN(name='bn_after_db2', **self.bnArgs)
+        #self.act_after_db2 = ComplexNormalization()
+        self.output_conv = ComplexConv2D(self.nmic, (3, 3), name='output_conv', **self.convArgs)
+
+        self.layer_2 = self.layer2
+
+        self.folding_layer_1 = ComplexConv2D(1, (3, 3), name='folding_conv_1', **self.convArgs)
+        #self.folding_layer_2 = ComplexConv2D(1, (3, 3), name='folding_conv_2', **self.convArgs)
+        #self.critic = CriticLayer(8)
+
+    def to_real_imag_tensor(self,x):
+        return tf.concat([tf.math.real(x),tf.math.imag(x)],axis=-1)
+
+    def to_complex_tensor(self,x):
+        return tf.complex(x[...,:x.shape[-1]//2],x[...,x.shape[-1]//2:])
+
     # ---------------------------------------------------------
-    def layer0(self, inp):
+    def layer0(self, inp,training):
         Fz = tf.cast(inp, tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
 
         Pz = elementwise_abs2(Fz)  # shape = (nbatch, nfram, nbin, nmic)
@@ -190,7 +263,6 @@ class CNBF_CNN(tf.keras.Model):
 
         vz = vector_normalize_magnitude(Fz)  # shape = (nbatch, nfram, nbin, nmic)
         vz = vector_normalize_phase(vz)  # shape = (nbatch, nfram, nbin, nmic)
-
         X = tf.concat([vz, Lz], axis=-1)  # shape = (nbatch, nfram, nbin, nmic+1)
         Y = tf.reshape(X,
                        [-1, self.nfram, self.nbin * (self.nmic + 1)])  # shape = (nbatch, nfram, nbin*(nmic+1))
@@ -211,12 +283,22 @@ class CNBF_CNN(tf.keras.Model):
         Fs = tf.cast(inp[0], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
         Fn = tf.cast(inp[1], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
         W = tf.cast(inp[2], tf.complex64)  # shape = (nbatch, nfram, nbin, nmic)
+        X = inp[3]
         #W = tf.reduce_mean(W,axis=-2,keepdims=True)
         #W = tf.tile(W,[1,1,self.nbin,1])
         # beamforming
         W = vector_normalize_magnitude(W)  # shape = (nbatch, nfram, nbin, nmic)
         W = vector_normalize_phase(W)  # shape = (nbatch, nfram, nbin, nmic)
+
         Fys = vector_conj_inner(Fs, W)
+
+        Rys = tf.expand_dims(Fys,-1)
+        Rys = self.to_real_imag_tensor(Rys)
+        X = self.folding_layer_1(X)
+        Rys = Rys*X
+        #Rys = self.folding_layer_2(Rys)
+        Rys = tf.squeeze(self.to_complex_tensor(Rys))
+
         #Fys = tf.squeeze(W[...,:W.shape[-1]//2])  # shape = (nbatch, nfram, nbin)
         Fyn = vector_conj_inner(Fn, W)
         #Fyn = tf.squeeze(W[...,W.shape[-1]//2:])# shape = (nbatch, nfram, nbin)
@@ -244,11 +326,11 @@ class CNBF_CNN(tf.keras.Model):
         #for i_mic in range(1,W.shape[-1]):
         #    delta_phase_2 += tf.abs(tf.math.angle(delta_frame_2[...,i_mic-1])-tf.math.angle(delta_frame_2[...,i_mic]))
         #delta_phase = tf.reduce_mean(tf.abs(delta_phase_2-delta_phase_1))
-        fake = self.critic(tf.expand_dims(tf.stop_gradient(Pys),-1),training)
-        real = self.critic(tf.expand_dims(tf.stop_gradient(Ps),-1), training)
-        critic_loss = tf.reduce_mean(real)-tf.reduce_mean(fake)
-        gen_loss = tf.reduce_mean(self.critic(tf.expand_dims(Pys,-1), training))
-        ws_loss = gen_loss+critic_loss
+        #fake = self.critic(tf.expand_dims(tf.stop_gradient(Pys),-1),training)
+        #real = self.critic(tf.expand_dims(tf.stop_gradient(Ps),-1), training)
+        #critic_loss = tf.reduce_mean(real)-tf.reduce_mean(fake)
+        #gen_loss = tf.reduce_mean(self.critic(tf.expand_dims(Pys,-1), training))
+        ws_loss = 0.0#gen_loss+critic_loss
         Ps_normed = Ps/tf.norm(Ps,axis=-1,keepdims=True)
         Pn_normed = Pn / tf.norm(Pn, axis=-1, keepdims=True)
         Pys_normed = Pys / tf.norm(Pys, axis=-1, keepdims=True)
@@ -261,7 +343,7 @@ class CNBF_CNN(tf.keras.Model):
         #           +tf.reduce_mean(tf.abs(Pyn-Pn))+0.1*ws_loss#-tf.reduce_mean(delta_snr, axis=(1, 2))+1e-2*delta_phase
         cost = -tf.reduce_mean(delta_snr, axis=(1, 2))
         opt_loss = cost+0.1*ws_loss
-        return [Fys, Fyn, cost,opt_loss,ws_loss]
+        return [Fys, Fyn,Rys,cost,opt_loss,ws_loss]
 
     def complex_concat(self,x,y):
         x_real = x[...,:x.shape[-1]//2]
@@ -272,36 +354,43 @@ class CNBF_CNN(tf.keras.Model):
 
         return tf.concat([x_real,y_real,x_img,y_img],axis=-1)
 
-    def build(self, input_shape):
-        self.layer_0 = Lambda(self.layer0)
-        self.init_conv = ComplexConv2D(self.n_ch_base, (3,3), name='init_conv', **self.convArgs)
+    def complex_mult(self,x,y):
+        x_r = x[...,:x.shape[-1]//2]
+        x_i = x[..., x.shape[-1] // 2:]
 
-        self.dense_layers = []
-        for i_dense in range(self.n_dense):
-            self.dense_layers.append(DenseLayer(self.n_ch_base,
-                                                dilation_rate = [1,2**i_dense],
-                                                bnArgs=self.bnArgs,
-                                                convArgs=self.convArgs))
+        y_r = y[...,:y.shape[-1]//2]
+        y_i = y[..., y.shape[-1] // 2:]
 
+        out_r = x_r*y_r-x_i*y_i
+        out_i = x_i*y_r+x_r*y_i
 
-        self.output_conv = ComplexConv2D(self.nmic, (3, 3), name='output_conv', **self.convArgs)
-
-        self.layer_2 = self.layer2
-
-        self.critic = CriticLayer(8)
+        return tf.concat([out_r,out_i],axis=-1)
 
     def call(self, Fs, Fn, training=False):
         Fz = Fs + Fn
 
-        X, _ = self.layer_0(Fz)
+        X, _ = self.layer_0(Fz,training)
         X = tf.concat([tf.math.real(X),tf.math.imag(X)],axis=-1)
 
         X = self.init_conv(X)  # shape = (nbatch, nfram, n_bin,n_ch_base)
+        #Y = self.init_conv2(X)
+        #X = self.complex_mult(X,Y)
+
         for i_dense in range(self.n_dense):
             X=self.dense_layers[i_dense](X,training=training)
-        W = self.output_conv(X)
-        W = tf.complex(W[...,:W.shape[-1]//2],W[...,W.shape[-1]//2:]) # shape = (nbatch, nfram, n_bin,nmic)
+        #Y = X
+        X = self.conv_after_db(X)
+        X = self.bn_after_db(X,training)
+        X = self.act_after_db(X)
 
-        Fys, Fyn, cost,opt_loss,ws_loss = self.layer_2([Fs, Fn, W],training)
-        return Fys, Fyn, cost,opt_loss,ws_loss
+        #Y = self.conv_after_db2(Y)
+        #Y = self.bn_after_db2(Y,training)
+        #Y = self.act_after_db2(Y)
+        #X = self.complex_mult(X,Y)
+
+        W = self.output_conv(X)
+        W = self.to_complex_tensor(W) # shape = (nbatch, nfram, n_bin,nmic)
+
+        Fys, Fyn,Rys,cost,opt_loss,ws_loss = self.layer_2([Fs, Fn, W,X],training)
+        return Fys, Fyn,Rys, cost,opt_loss,ws_loss
 

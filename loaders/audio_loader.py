@@ -6,7 +6,7 @@ import numpy as np
 import glob
 import sys
 import os
-
+import time
 sys.path.append(os.path.abspath('../'))
 from algorithms.audio_processing import *
 
@@ -25,7 +25,7 @@ class audio_loader(object):
         self.samples = int(self.fs*config['duration'])
         self.nfram = int(np.ceil( (self.samples-self.wlen+self.shift)/self.shift ))
         self.nbin = int(self.wlen/2+1)
-
+        self.audio_buffer = {}
 
         if set == 'train':
             path = config['train_path']
@@ -41,7 +41,13 @@ class audio_loader(object):
         self.numof_files = len(self.file_list)
 
         print('*** audio_loader found %d files in: %s' % (self.numof_files, path))
+        if config['preload']:
+            self.preload_audio()
 
+    def preload_audio(self):
+        for f in self.file_list:
+            s, fs = audioread(f)
+            self.audio_buffer[f] = (s, fs)
 
     #-------------------------------------------------------------------------
     def concatenate_random_files(self,):
@@ -50,7 +56,12 @@ class audio_loader(object):
         n = 0
         while n<self.samples:
             f = np.random.choice(self.file_list)
-            s, fs = audioread(f)
+            if f in self.audio_buffer.keys():
+                s, fs = self.audio_buffer[f]
+            else:
+                s, fs = audioread(f)
+                self.audio_buffer[f] = (s,fs)
+
             length = s.shape[0]
             n1 = min(n+length, self.samples)
             x[n:n1] = s[0:n1-n]

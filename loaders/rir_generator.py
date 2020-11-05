@@ -10,7 +10,7 @@ import os
 import sys
 import numpy as np
 import pyroomacoustics as pra
-
+import tensorflow as tf
 sys.path.append(os.path.abspath('../'))
 
 from utils.mat_helpers import *
@@ -80,6 +80,7 @@ class rir_generator(object):
             # ZCA whitening
             self.U[k,:,:] = np.dot(E, np.dot(iD, E.T.conj()))               # U = E*D^-0.5*E'
 
+        self.U = tf.constant(self.U,dtype=tf.complex64)
 
 
     #----------------------------------------------------------------------------
@@ -87,7 +88,8 @@ class rir_generator(object):
 
         # U.shape = (nbin, nmic, nmic)
         # Fs.shape = (..., nbin, nmic)
-        Fus = np.einsum('kdc, ...kc->...kd', self.U, Fs)                     # shape = (..., nbin, nmic)
+
+        Fus = tf.einsum('kdc, ...kc->...kd', self.U, Fs)                     # shape = (..., nbin, nmic)
 
         return Fus
 

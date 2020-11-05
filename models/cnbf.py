@@ -3,7 +3,7 @@ from models.layers.complex_layers import *
 from models.layers.kernelized_layers import *
 from tensorflow.keras.layers import Dense, Activation, LSTM, Input, Lambda
 import tensorflow as tf
-
+from complexnn import GetImag, GetReal,CReLU,CRot
 
 def log10(x):
 
@@ -91,23 +91,39 @@ class CNBF(tf.keras.Model):
 
     def build(self,input_shape):
         self.layer_0 = Lambda(self.layer0)
-        self.complex_dense_1 = Complex_Dense(units=50, activation='tanh')
-        self.complex_dense_2 = Complex_Dense(units=self.nbin, activation='tanh')
+        self.complex_dense_1 = Complex_Dense(units=50, activation='none')
+        self.crot_1 = CRot()
+        self.complex_dense_2 = Complex_Dense(units=self.nbin, activation='none')
+        self.crot_2 = CRot()
         self.layer_1 = Lambda(self.layer1)
         self.complex_lstm = Kernelized_Complex_LSTM(units=self.nmic * 2)
-        self.complex_dense_3 = Kernelized_Complex_Dense(units=self.nmic * 2, activation='tanh')
+        self.complex_dense_3 = Kernelized_Complex_Dense(units=self.nmic * 2, activation='none')
+        self.crot_3 = CRot()
         self.complex_dense_4 = Kernelized_Complex_Dense(units=self.nmic, activation='linear')
         self.layer_2 = Lambda(self.layer2)
+
+    def to_real_imag_tensor(self,x):
+        return tf.concat([tf.math.real(x),tf.math.imag(x)],axis=-1)
+
+    def to_complex_tensor(self,x):
+        return tf.complex(x[...,:x.shape[-1]//2],x[...,x.shape[-1]//2:])
 
     def call(self,Fs,Fn,training=False):
         Fz = Fs + Fn
         X, Y = self.layer_0(Fz)
         Y = self.complex_dense_1(Y)  # shape = (nbatch, nfram, 50)
+        Y = self.crot_1(self.to_real_imag_tensor(Y))
+        Y = self.to_complex_tensor(Y)
         Y = self.complex_dense_2(Y)  # shape = (nbatch, nfram, nbin)
+        Y = self.crot_2(self.to_real_imag_tensor(Y))
+        Y = self.to_complex_tensor(Y)
         X = self.layer_1([X, Y])
         X = self.complex_lstm(X)  # shape = (nbatch, nfram, nbin, nmic*2)
         X = self.complex_dense_3(X)  # shape = (nbatch, nfram, nbin, nmic*2)
+        X = self.crot_3(self.to_real_imag_tensor(X))
+        X = self.to_complex_tensor(X)
         W = self.complex_dense_4(X)  # shape = (nbatch, nfram, nbin, nmic)
         Fys, Fyn, cost = self.layer_2([Fs, Fn, W])
-        return Fys, Fyn, cost,cost,0.0
+        return Fys, Fyn,0.0,cost,cost,0.0
+
     

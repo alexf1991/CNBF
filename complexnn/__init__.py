@@ -21,4 +21,4 @@ from   .init  import (ComplexIndependentFilters, IndependentFilters,
 from   .norm  import LayerNormalization, ComplexLayerNorm
 from   .pool  import SpectralPooling1D, SpectralPooling2D
 from   .utils import (get_realpart, get_imagpart, getpart_output_shape,
-                      GetImag, GetReal, GetAbs,Spline,CReLU,CRot,DenseHess)
+                      GetImag, GetReal, GetAbs,Spline,CReLU,CRot,DenseHess,Cauchy1)
